@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Microland Retail AI Intelligence - Presentation</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #00e5ff;
+            --secondary: #7c4dff;
+            --accent: #ffab40;
+            --bg-dark: #0a0e1b;
+            --card-bg: rgba(255, 255, 255, 0.05);
+            --text-main: #ffffff;
+            --text-dim: #a0a0c0;
+            --microland-red: #e62020;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            overflow: hidden; /* We'll use smooth snap scrolling */
+        }
+
+        .container {
+            height: 100vh;
+            scroll-snap-type: y mandatory;
+            overflow-y: scroll;
+            scrollbar-width: none; /* Firefox */
+        }
+
+        .container::-webkit-scrollbar {
+            display: none; /* Chrome/Safari */
+        }
+
+        section {
+            height: 100vh;
+            width: 100vw;
+            scroll-snap-align: start;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 40px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Background Effects */
+        .glow {
+            position: absolute;
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, var(--secondary), transparent 70%);
+            filter: blur(80px);
+            opacity: 0.3;
+            z-index: -1;
+            animation: move 20s infinite alternate;
+        }
+
+        @keyframes move {
+            from { transform: translate(-20%, -20%); }
+            to { transform: translate(20%, 20%); }
+        }
+
+        /* Title Slide */
+        #hero {
+            background: linear-gradient(rgba(10, 14, 27, 0.8), rgba(10, 14, 27, 0.8)), url('bg.png');
+            background-size: cover;
+            background-position: center;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 4rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+            background: linear-gradient(to right, #fff, var(--primary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            font-size: 1.5rem;
+            color: var(--text-dim);
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .logo-placeholder {
+            position: absolute;
+            top: 40px;
+            right: 60px;
+            font-weight: 700;
+            font-size: 1.5rem;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .logo-placeholder span { color: var(--microland-red); }
+
+        /* Architecture Slide */
+        .glass-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 1000px;
+            width: 100%;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+        }
+
+        .arch-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 30px;
+            margin-top: 40px;
+        }
+
+        .node {
+            padding: 20px;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(0, 229, 255, 0.2);
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+
+        .node:hover {
+            transform: translateY(-5px);
+            border-color: var(--primary);
+        }
+
+        .node h3 { margin-bottom: 10px; color: var(--primary); }
+        .node p { font-size: 0.9rem; color: var(--text-dim); }
+
+        /* Features / Quadrants */
+        .quadrants {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: 20px;
+            width: 80%;
+            height: 60%;
+        }
+
+        .quadrant {
+            padding: 30px;
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            border: 1px solid rgba(255,255,255,0.05);
+            transition: all 0.4s ease;
+        }
+
+        .q1 { background: linear-gradient(135deg, rgba(0, 229, 255, 0.1), transparent); }
+        .q2 { background: linear-gradient(135deg, rgba(124, 77, 255, 0.1), transparent); }
+        .q3 { background: linear-gradient(135deg, rgba(230, 32, 32, 0.1), transparent); }
+        .q4 { background: linear-gradient(135deg, rgba(255, 171, 64, 0.1), transparent); }
+
+        .quadrant:hover {
+            transform: scale(1.02);
+            border-color: rgba(255,255,255,0.2);
+        }
+
+        .quadrant h2 { font-size: 1.8rem; margin-bottom: 10px; }
+
+        /* Performance & Security */
+        .list-items {
+            list-style: none;
+            margin-top: 30px;
+        }
+
+        .list-items li {
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            font-size: 1.2rem;
+        }
+
+        .list-items li::before {
+            content: '✦';
+            color: var(--primary);
+        }
+
+        /* Navigation Hints */
+        .nav-hint {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            animation: bounce 2s infinite;
+            opacity: 0.6;
+        }
+
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% {transform: translateX(-50%) translateY(0);}
+            40% {transform: translateX(-50%) translateY(-10px);}
+            60% {transform: translateX(-50%) translateY(-5px);}
+        }
+
+        /* Badge */
+        .badge {
+            background: var(--microland-red);
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 20px;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <!-- Slide 1: Welcome -->
+        <section id="hero">
+            <div class="badge">Enterprise Ready</div>
+            <h1>Retail Intelligence Hub</h1>
+            <p class="subtitle">AI-Driven Predictive Analytics for Modern Store Management. All four intelligence quadrants synced across Mobile and Web.</p>
+            <div class="logo-placeholder">MICRO<span>LAND</span></div>
+            <div class="nav-hint">↓ Scroll to Begin</div>
+        </section>
+
+        <!-- Slide 2: Team Introduction -->
+        <section id="team">
+            <div class="glow" style="top: 10%; left: 0;"></div>
+            <h1>The Innovators</h1>
+            <div class="glass-card" style="text-align: center;">
+                <h2 style="margin-bottom: 20px; color: var(--primary);">Retail Chatbot AI Team</h2>
+                <div style="display: flex; justify-content: center; gap: 60px; flex-wrap: wrap;">
+                    <div class="member">
+                        <div style="width: 120px; height: 120px; border-radius: 50%; background: linear-gradient(var(--primary), var(--secondary)); margin: 0 auto 15px;"></div>
+                        <h3>Deepak Nalla</h3>
+                        <p style="color: var(--text-dim);">Lead AI Architect</p>
+                    </div>
+                </div>
+                <p style="margin-top: 40px; color: var(--text-dim); font-style: italic;">"Empowering retail through seamless AI integration and real-time visualization."</p>
+            </div>
+        </section>
+
+        <!-- Slide 3: Architecture -->
+        <section id="architecture">
+            <h1>Application Architecture</h1>
+            <div class="glass-card">
+                <div class="arch-grid">
+                    <div class="node">
+                        <h3>Frontend</h3>
+                        <p>React Native (Expo Mobile)</p>
+                        <p>React.js (Web Dashboard)</p>
+                        <p>Visual Charts (Victory/Chart.js)</p>
+                    </div>
+                    <div class="node" style="border-color: var(--secondary);">
+                        <h3>Backend (API)</h3>
+                        <p>Node.js / Express</p>
+                        <p>Sequelize ORM</p>
+                        <p>RESTful Microservices</p>
+                    </div>
+                    <div class="node" style="border-color: var(--accent);">
+                        <h3>Database</h3>
+                        <p>PostgreSQL (Neon Serverless)</p>
+                        <p>Relational Optimization</p>
+                        <p>500+ Deep Dataset</p>
+                    </div>
+                </div>
+                <div class="arch-grid" style="margin-top: 30px;">
+                    <div class="node" style="grid-column: span 3; border-style: dashed;">
+                        <h3 style="color: #fff;">AI Layer</h3>
+                        <p>Ollama (Mistral-7B) | OpenAI (GPT-4o) | Whisper Transcription | Self-Learning Logic</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 4: Four Intelligence Quadrants -->
+        <section id="quadrants">
+            <h1>The Intelligence Quadrants</h1>
+            <div class="quadrants">
+                <div class="quadrant q1">
+                    <h2>01 Inventory</h2>
+                    <p>Real-time SKU tracking, safety stock levels, and automated reorder alerts.</p>
+                </div>
+                <div class="quadrant q2">
+                    <h2>02 Sales</h2>
+                    <p>Financial performance, trend analysis, and predictive revenue forecasting.</p>
+                </div>
+                <div class="quadrant q3">
+                    <h2>03 Support</h2>
+                    <p>Automated ticket resolution, sentiment index, and customer service automation.</p>
+                </div>
+                <div class="quadrant q4">
+                    <h2>04 Recommendations</h2>
+                    <p>Conversion-optimized product suggestions based on user behavior and brand affinity.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 5: Mobile & Web Demo -->
+        <section id="demo">
+            <div class="glow" style="bottom: 0; right: 0;"></div>
+            <h1>Live Demonstration</h1>
+            <div class="glass-card" style="display: flex; align-items: center; gap: 40px;">
+                <div style="flex: 1;">
+                    <h2 style="color: var(--primary); margin-bottom: 15px;">Unified Experience</h2>
+                    <ul class="list-items">
+                        <li><strong>Mobile:</strong> Voice-first chat, quick audits, and QR/Barcode integration.</li>
+                        <li><strong>Web:</strong> Deep-dive analytics, high-res dashboards, and management portal.</li>
+                        <li><strong>Sync:</strong> Real-time PostgreSQL synchronization across all devices.</li>
+                    </ul>
+                </div>
+                <div style="flex: 1; padding: 20px; background: rgba(0,0,0,0.3); border-radius: 15px; text-align: center;">
+                    <p style="color: var(--accent); font-weight: 600;">ACTIVE DEPLOYMENT</p>
+                    <p style="font-size: 1.5rem; margin: 10px 0;">RetailIntelligence.v1</p>
+                    <div style="padding: 10px; border: 1px solid var(--primary); border-radius: 8px; display: inline-block;">
+                        STABLE: 5.0.0-PRO
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 6: Performance, Scalability & Security -->
+        <section id="performance">
+            <h1>Scalability & Security</h1>
+            <div class="glass-card">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px;">
+                    <div>
+                        <h2 style="color: var(--primary); margin-bottom: 20px;">Performance & Scale</h2>
+                        <ul class="list-items" style="font-size: 1rem;">
+                            <li><strong>Serverless DB:</strong> Autoscale with Neon PostgreSQL for zero-downtime growth.</li>
+                            <li><strong>Edge Processing:</strong> Fast AI response via tiered inference (Local/Cloud).</li>
+                            <li><strong>Connection Pooling:</strong> Managed DB connections for high concurrency.</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <h2 style="color: var(--secondary); margin-bottom: 20px;">Security & Compliance</h2>
+                        <ul class="list-items" style="font-size: 1rem;">
+                            <li><strong>Secure Data:</strong> SSL-encrypted PostgreSQL connections (Mandatory).</li>
+                            <li><strong>Sanitized Input:</strong> Automated SQL injection prevention via Sequelize.</li>
+                            <li><strong>Safe Uploads:</strong> Multi-tier file cleanup for audio transcriptions.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 7: Conclusion -->
+        <section id="conclusion">
+            <h2 style="color: var(--accent); margin-bottom: 10px;">The Ultimate Deliverable</h2>
+            <h1>Ready to Impact</h1>
+            <p class="subtitle" style="margin-bottom: 40px;">Focused on problem solving. Driven by data.</p>
+            <div class="logo-placeholder" style="position: static;">MICRO<span>LAND</span></div>
+        </section>
+    </div>
+
+    <script>
+        // Simple scroll navigation indicator logic could go here
+        document.addEventListener('keydown', (e) => {
+            const container = document.querySelector('.container');
+            if (e.key === 'ArrowDown' || e.key === ' ') {
+                container.scrollBy({ top: window.innerHeight, behavior: 'smooth' });
+            } else if (e.key === 'ArrowUp') {
+                container.scrollBy({ top: -window.innerHeight, behavior: 'smooth' });
+            }
+        });
+    </script>
+</body>
+</html>

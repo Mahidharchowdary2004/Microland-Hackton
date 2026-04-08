@@ -284,6 +284,147 @@ async function getChatbotResponse(message, history = []) {
   const lowStockItems = await Product.count({ where: { quantityOnHand: { [Op.lt]: sequelize.col('reorderLevel') } } });
   const totalRevenue = await SalesRecord.sum('grandTotal') || 0;
   const pendingTickets = await CustomerService.count({ where: { status: 'Open' } });
+  const totalRevenueAll = await SalesRecord.sum('grandTotal') || 0;
+
+  // --- CRUD OPERATIONS START ---
+  const crudKeywords = ['add', 'create', 'update', 'change', 'set', 'delete', 'remove', 'restock', 'modify'];
+  const isCrudIntent = crudKeywords.some(k => lowerMsg.includes(k));
+
+  if (isCrudIntent) {
+    try {
+      console.log(`[INTENT] Potential CRUD Operation Detected: "${message}"`);
+      
+      let crud = { operation: 'UNKNOWN', model: 'Product', data: {} };
+
+      // Regex Extraction
+      if (lowerMsg.includes('add') || lowerMsg.includes('create')) {
+        crud.operation = 'CREATE';
+        const nameMatch = message.match(/(?:add|create)(?:\s+a\s+new\s+product)?\s+["']?([^"']+)["']?/i);
+        const priceMatch = message.match(/(?:price|cost)(?:\s+of|\s+is)?\s+([0-9.]+)/i);
+        const stockMatch = message.match(/(?:stock|quantity)(?:\s+of|\s+is)?\s+([0-9.]+)/i);
+        const catMatch = message.match(/category\s+["']?([^"']+)["']?/i);
+
+        if (nameMatch) crud.data.name = nameMatch[1].trim();
+        if (priceMatch) crud.data.costPrice = parseFloat(priceMatch[1]);
+        if (stockMatch) crud.data.quantityOnHand = parseInt(stockMatch[1]);
+        if (catMatch) crud.data.category = catMatch[1].trim();
+      } else if (lowerMsg.includes('update') || lowerMsg.includes('change') || lowerMsg.includes('set') || lowerMsg.includes('restock')) {
+        crud.operation = 'UPDATE';
+        // Improved regex for update: look for product name in quotes or after glue words
+        const quotedName = message.match(/["']([^"']+)["']/);
+        const nameAfterUpdate = message.match(/(?:update|change|set|restock)(?:\s+the)?\s+(?:price|stock|quantity|category)?(?:\s+of|\s+for)?\s+([^"']+)[\s\.]/i);
+        
+        crud.searchValue = quotedName ? quotedName[1] : (nameAfterUpdate ? nameAfterUpdate[1].trim() : null);
+        
+        const priceMatch = message.match(/(?:price|cost)\s+(?:to|is)\s+([0-9.]+)/i);
+        const stockMatch = message.match(/(?:stock|quantity|units)\s+(?:to|is|by)\s+([0-9.]+)/i);
+        const catMatch = message.match(/category\s+to\s+["']?([^"']+)["']?/i);
+
+        if (priceMatch) crud.data.costPrice = parseFloat(priceMatch[1]);
+        if (stockMatch) crud.data.quantityOnHand = parseInt(stockMatch[1]);
+        if (catMatch) crud.data.category = catMatch[1].trim();
+      } else if (lowerMsg.includes('delete') || lowerMsg.includes('remove')) {
+        crud.operation = 'DELETE';
+        const quotedName = message.match(/["']([^"']+)["']/);
+        const nameMatch = message.match(/(?:delete|remove)\s+(?:product\s+)?([^"']+)[\s\.]?/i);
+        crud.searchValue = quotedName ? quotedName[1] : (nameMatch ? nameMatch[1].trim() : null);
+      }
+
+      // Cleanup logic: if searchValue is a keyword, it's likely a bad match
+      if (crud.searchValue && (crud.searchValue.toLowerCase() === 'price' || crud.searchValue.toLowerCase() === 'stock')) {
+         crud.searchValue = null;
+      }
+
+      // Use AI to refine if regex missed something or for better semantic understanding
+      try {
+        if (crud.operation === 'UNKNOWN' || (!crud.data.name && !crud.searchValue)) {
+          const crudPrompt = `Extract CRUD operation (CREATE/UPDATE/DELETE) and parameters (name, price, stock, category).
+          User: "${message}"
+          Return JSON only.`;
+          const aiResult = await ollama.chat({ model: 'mistral:latest', messages: [{ role: 'system', content: crudPrompt }], format: 'json' });
+          const aiCrud = JSON.parse(aiResult.message.content);
+          if (aiCrud.operation !== 'UNKNOWN') crud = { ...crud, ...aiCrud, data: { ...crud.data, ...aiCrud.data } };
+        }
+      } catch (aiErr) { console.warn('[CRUD] AI Refinement skipped/failed.'); }
+
+      console.log(`[CRUD] Final Parsed:`, crud);
+
+      if (crud.operation === 'CREATE' && crud.data.name) {
+        const newProduct = await Product.create({
+          productId: `PRD-${Math.floor(Math.random() * 9000) + 1000}`,
+          sku: `SKU-${Math.floor(Math.random() * 9000) + 1000}`,
+          name: crud.data.name,
+          category: crud.data.category || 'General',
+          costPrice: crud.data.costPrice || 0,
+          quantityOnHand: crud.data.quantityOnHand || 0,
+          reorderLevel: crud.data.reorderLevel || 10,
+          stockStatus: 'In Stock',
+          lastUpdated: new Date()
+        });
+        return {
+          type: 'text',
+          text: `✅ **Success!** Created new product: **${newProduct.name}**
+- Product ID: ${newProduct.productId}
+- Price: ₹${newProduct.costPrice}
+- Stock: ${newProduct.quantityOnHand} units`
+        };
+      }
+
+      if (crud.operation === 'UPDATE' && crud.searchValue) {
+        const product = await Product.findOne({
+          where: {
+            [Op.or]: [
+              { name: { [Op.iLike]: `%${crud.searchValue}%` } },
+              { productId: crud.searchValue }
+            ]
+          }
+        });
+
+        if (product) {
+          const oldData = { ...product.dataValues };
+          if (lowerMsg.includes('restock') && crud.data.quantityOnHand) {
+             crud.data.quantityOnHand = product.quantityOnHand + crud.data.quantityOnHand;
+          }
+          
+          await product.update({ ...crud.data, lastUpdated: new Date() });
+          
+          let changes = [];
+          if (crud.data.costPrice) changes.push(`Price: ₹${oldData.costPrice} ➔ ₹${crud.data.costPrice}`);
+          if (crud.data.quantityOnHand !== undefined) changes.push(`Stock: ${oldData.quantityOnHand} ➔ ${product.quantityOnHand}`);
+          if (crud.data.category) changes.push(`Category: ${oldData.category} ➔ ${crud.data.category}`);
+
+          return {
+            type: 'text',
+            text: `🛠️ **Updated ${product.name} Successfully!**
+${changes.length > 0 ? changes.map(c => `• ${c}`).join('\n') : '• No changes detected in numeric fields.'}`
+          };
+        }
+      }
+
+      if (crud.operation === 'DELETE' && crud.searchValue) {
+        const product = await Product.findOne({
+          where: {
+            [Op.or]: [
+              { name: { [Op.iLike]: `%${crud.searchValue}%` } },
+              { productId: crud.searchValue }
+            ]
+          }
+        });
+
+        if (product) {
+          const productName = product.name;
+          await product.destroy();
+          return {
+            type: 'text',
+            text: `🗑️ **Product Removed:** "${productName}" has been deleted from the enterprise inventory.`
+          };
+        }
+      }
+    } catch (err) {
+      console.error('[CRUD ERROR]', err.message);
+    }
+  }
+  // --- CRUD OPERATIONS END ---
 
   // 2. Intent Priority 1: Greetings & Help
   if (lowerMsg.includes('hello') || lowerMsg.includes('hi') || lowerMsg.startsWith('start') || lowerMsg === 'help') {
@@ -314,15 +455,23 @@ How can I assist you today?`
       text: `Based on conversion scores, here are the top 4 recommended products:`,
       products: recs.map(r => {
         const p = productMap[r.recommendedProductId] || {};
+        const costPrice = p.costPrice || 0;
+        const qoh = p.quantityOnHand || 0;
+        const rl = p.reorderLevel || 0;
+        const rq = p.reorderQuantity || 0;
+        
         return {
           id: r.recommendedProductId,
           sku: r.recommendedProductId,
           name: p.name || r.recommendedProductName || 'Retail SKU',
           category: p.category || r.recommendedCategory || 'Category',
-          price: p.costPrice ? `₹${Math.round(p.costPrice).toLocaleString()}` : 'Trending',
-          stock: p.quantityOnHand || 45,
-          total: (p.quantityOnHand || 45) + (p.reorderQuantity || 55),
-          threshold: p.reorderLevel || 20,
+          price: `₹${Math.round(costPrice).toLocaleString()}`,
+          costPrice: costPrice,
+          stock: qoh,
+          quantityOnHand: qoh,
+          total: qoh + rq,
+          threshold: rl,
+          reorderLevel: rl,
           region: r.region || 'Global',
           lastUpdated: r.recommendationDate ? new Date(r.recommendationDate).toLocaleDateString() : 'Recent'
         };

@@ -32,11 +32,11 @@ const ProductList = ({ products, text, fullView }) => {
                  <div className="p-main-stats">
                     <div className="stat-group">
                        <span className="stat-label">Market Price</span>
-                       <span className="stat-val primary">₹{Math.round(p.costPrice).toLocaleString()}</span>
+                       <span className="stat-val primary">₹{Math.round(p.costPrice || 0).toLocaleString()}</span>
                     </div>
                     <div className="stat-group align-right">
                        <span className="stat-label">Available</span>
-                       <span className={`stat-val ${isLow ? 'danger' : 'success'}`}>{p.quantityOnHand}</span>
+                       <span className={`stat-val ${isLow ? 'danger' : 'success'}`}>{p.quantityOnHand || 0}</span>
                     </div>
                  </div>
 
@@ -157,16 +157,16 @@ const ProductList = ({ products, text, fullView }) => {
                     </div>
                   </td>
                   <td><span className="category-pill">{p.category}</span></td>
-                  <td><span className="valuation-text">₹{Math.round(p.costPrice).toLocaleString()}</span></td>
+                  <td><span className="valuation-text">₹{Math.round(p.costPrice || 0).toLocaleString()}</span></td>
                   <td>
                     <div className="stock-meter">
                       <div className="meter-track">
                         <div 
                           className={`meter-fill ${isLow ? 'critical' : 'stable'}`}
-                          style={{ width: `${Math.min((p.quantityOnHand / (p.reorderLevel * 2 || 100)) * 100, 100)}%` }}
+                          style={{ width: `${Math.min(((p.quantityOnHand || 0) / (p.reorderLevel * 2 || 100)) * 100, 100)}%` }}
                         />
                       </div>
-                      <span className="meter-label">{p.quantityOnHand} in stock</span>
+                      <span className="meter-label">{p.quantityOnHand || 0} in stock</span>
                     </div>
                   </td>
                   <td>

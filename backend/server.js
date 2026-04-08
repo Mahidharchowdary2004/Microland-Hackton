@@ -6,9 +6,15 @@ const { Sequelize, DataTypes, Op } = require('sequelize');
 const multer = require('multer');
 const axios = require('axios');
 const fs = require('fs');
-const path = require('path');
 const FormData = require('form-data');
 require('dotenv').config();
+
+// Local AI & Audio Engine
+const { pipeline } = require('@xenova/transformers');
+const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
+const ffmpeg = require('fluent-ffmpeg');
+ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+const wavefile = require('wavefile');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -193,7 +199,27 @@ const TrainingLog = sequelize.define('TrainingLog', {
 // Sync Schema (Skip legacy seeding as we use Excel Data)
 const isDev = process.env.NODE_ENV !== 'production';
 sequelize.sync({ alter: isDev }).then(() => console.log('Database schema ready.'));
-// Keep-alive heartbeat
+// Local AI Pipeline Initialization
+let transcriber = null;
+async function initializeAiPipeline() {
+  console.log('🚀 [AI] Initializing Local Transcription Engine...');
+  console.log('📦 [AI] This will download the 150MB model on the first run. Please wait...');
+  try {
+    transcriber = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny.en', {
+        quantized: true,
+        progress_callback: (p) => {
+            if (p.status === 'progress') {
+                process.stdout.write(`\r📥 [AI] Downloading Model: ${p.progress.toFixed(2)}% `);
+            }
+        }
+    });
+    console.log('\n✅ [AI] Local Transcription Engine Ready (100% Offline)');
+  } catch (err) {
+    console.error('❌ [AI] Initialization Failed:', err.message);
+  }
+}
+initializeAiPipeline();
+
 setInterval(() => {
   console.log(`[HEARTBEAT] Retail Hub backend active... (${new Date().toLocaleTimeString()})`);
   sequelize.query('SELECT 1').catch(() => { });
@@ -659,20 +685,10 @@ Always provide a concise, professional answer.`;
 
     return { type: 'text', text: response.message.content || "I've reviewed the data. How else can I assist with your enterprise metrics?" };
   } catch (e) {
-    try {
-      const openaiResponse = await axios.post('https://api.openai.com/v1/chat/completions', {
-        model: 'gpt-4o-mini',
-        messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: message }]
-      }, {
-        headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` }
-      });
-      return { type: 'text', text: openaiResponse.data.choices[0].message.content };
-    } catch (openaiErr) {
-      return {
-        type: 'text',
-        text: `Your enterprise database is active with **${totalItems} records**. I'm currently processing your request about "${message}". How would you like me to proceed?`
-      };
-    }
+    return {
+      type: 'text',
+      text: `Your enterprise database is active with **${totalItems} records**. I'm currently processing your request about "${message}". How would you like me to proceed?`
+    };
   }
 }
 
@@ -720,92 +736,59 @@ app.get('/api/insights', async (req, res) => {
   }
 });
 
-// Transcription Endpoint (OpenAI Whisper)
+// Transcription Endpoint (Fully Local)
 const upload = multer({ dest: 'uploads/' });
 app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
-  console.log('[TRANSCRIPTION] Request received');
+  console.log('[TRANSCRIPTION] Local Request received');
   try {
-    if (!req.file) {
-      console.error('[TRANSCRIPTION] No audio file provided');
-      return res.status(400).json({ error: 'No audio file' });
-    }
+    if (!req.file) return res.status(400).json({ error: 'No audio file' });
+    if (!transcriber) return res.status(503).json({ error: 'AI engine still loading...' });
 
-    console.log(`[TRANSCRIPTION] Audio file received: ${req.file.originalname} (${req.file.size} bytes)`);
-    const audioPath = req.file.path;
-    const apiKey = (process.env.OPENAI_API_KEY || '').trim();
+    const inputPath = req.file.path;
+    const outputPath = `${inputPath}.wav`;
 
-    // 1. Try OpenAI if key is present
-    if (apiKey && apiKey.length > 20) {
-      try {
-        console.log('[TRANSCRIPTION] Attempting OpenAI Whisper...');
-        const formData = new FormData();
-        formData.append('file', fs.createReadStream(audioPath));
-        formData.append('model', 'whisper-1');
+    console.log(`[TRANSCRIPTION] Processing: ${req.file.originalname}`);
 
-        const response = await axios.post('https://api.openai.com/v1/audio/transcriptions', formData, {
-          headers: { ...formData.getHeaders(), Authorization: `Bearer ${apiKey}` },
-        });
-
-        console.log(`[TRANSCRIPTION] OpenAI Success: "${response.data.text}"`);
-        fs.unlinkSync(audioPath);
-        return res.json({ text: response.data.text });
-      } catch (err) {
-        console.error('[TRANSCRIPTION] OpenAI Failed:', err.response?.data || err.message);
-      }
-    }
-
-    // 2. Fallback: HuggingFace Inference API (Free)
-    try {
-      console.log('[TRANSCRIPTION] Attempting HuggingFace Whisper (Large V3)...');
-      const audioData = fs.readFileSync(audioPath);
-
-      const hfResponse = await axios.post(
-        'https://api-inference.huggingface.co/models/openai/whisper-large-v3',
-        audioData,
-        {
-          headers: { 'Content-Type': 'application/octet-stream' },
-          timeout: 25000 // Higher timeout for large models
-        }
-      );
-
-      if (hfResponse.data.text) {
-        console.log(`[TRANSCRIPTION] HuggingFace Success: "${hfResponse.data.text}"`);
-        fs.unlinkSync(audioPath);
-        return res.json({ text: hfResponse.data.text });
-      }
-    } catch (hfErr) {
-      console.warn('[TRANSCRIPTION] HuggingFace Large V3 busy or failed, trying Distil-Whisper...');
-      try {
-        const audioData = fs.readFileSync(audioPath);
-        const hfDistilResponse = await axios.post(
-          'https://api-inference.huggingface.co/models/distil-whisper/distil-large-v3',
-          audioData,
-          {
-            headers: { 'Content-Type': 'application/octet-stream' },
-            timeout: 15000
-          }
-        );
-        if (hfDistilResponse.data.text) {
-          console.log(`[TRANSCRIPTION] HuggingFace Distil Success: "${hfDistilResponse.data.text}"`);
-          fs.unlinkSync(audioPath);
-          return res.json({ text: hfDistilResponse.data.text });
-        }
-      } catch (distilErr) {
-        console.error('[TRANSCRIPTION] All HuggingFace fallbacks failed.');
-      }
-    }
-
-    // No Mock anymore - return real error if everything fails
-    fs.unlinkSync(audioPath);
-    return res.status(503).json({
-      error: 'Transcription service unavailable',
-      details: 'OpenAI key failed and free fallbacks are currently overloaded. Please check your internet connection or try again in a moment.'
+    // 1. Local Conversion: m4a -> wav (16kHz mono)
+    await new Promise((resolve, reject) => {
+      ffmpeg(inputPath)
+        .toFormat('wav')
+        .audioChannels(1)
+        .audioFrequency(16000)
+        .on('error', reject)
+        .on('end', resolve)
+        .save(outputPath);
     });
 
+    // 2. Local Transcription (Manual Audio Decoding for Node.js)
+    const buffer = fs.readFileSync(outputPath);
+    const wav = new wavefile.WaveFile(buffer);
+    wav.toBitDepth('32f'); // Convert to 32-bit float
+    wav.toSampleRate(16000); // Ensure 16kHz
+    
+    let audioData = wav.getSamples();
+    if (Array.isArray(audioData)) {
+      // If stereo, take only one channel
+      audioData = audioData[0];
+    }
+
+    const result = await transcriber(audioData, {
+      chunk_length_s: 30,
+      stride_length_s: 5,
+    });
+
+    console.log(`[TRANSCRIPTION] Success: "${result.text}"`);
+
+    // 3. Clean up temp files
+    if (fs.existsSync(inputPath)) fs.unlinkSync(inputPath);
+    if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
+
+    return res.json({ text: result.text.trim() });
+
   } catch (error) {
-    console.error('[TRANSCRIPTION] Fatal Error:', error.message);
-    if (fs.existsSync(req.file?.path)) fs.unlinkSync(req.file.path);
-    res.status(500).json({ error: 'Transcription failed', details: error.message });
+    console.error('[TRANSCRIPTION] Local Fatal Error:', error.message);
+    if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    res.status(500).json({ error: 'Local Transcription failed', details: error.message });
   }
 });
 

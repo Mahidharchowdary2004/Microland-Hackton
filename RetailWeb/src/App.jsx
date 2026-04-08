@@ -119,8 +119,8 @@ function App() {
       {/* Sidebar */}
       <aside className="sidebar">
         <div className="logo-section">
-          <div className="logo-icon">
-            <Bot size={24} color="#fff" />
+          <div className="logo-img-wrapper">
+            <img src="/logo.png" alt="Retail Hub Logo" className="logo-img" />
           </div>
           <h2>Microland AI</h2>
         </div>
